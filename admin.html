@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+	<!-- Required meta tags -->
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" />
+
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.css" />
+
+	<link rel="stylesheet"
+		href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/css/bootstrap-datepicker.min.css" />
+
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Raleway">
+
+	<style rel="stylesheet">
+		html,
+		body {
+			font-family: 'Raleway', sans-serif;
+		}
+
+		.datepicker table tr td.day,
+		.datepicker table tr td.day {
+			/* background-color: #198754 !important; */
+			/* border-color: #198754; */
+		}
+
+		.datepicker table tr td.day.disabled,
+		.datepicker table tr td.day.disabled {
+			background-color: transparent !important;
+			border-color: transparent;
+		}
+
+		.datepicker table tr td.disabled,
+		.datepicker table tr td.disabled:hover {
+			cursor: no-drop;
+			background-color: none;
+			border-color: none;
+		}
+
+
+		.datepicker table tr td.day.focused,
+		.datepicker table tr td.day:hover {
+			background-color: #198754 !important;
+			border-color: #198754;
+		}
+
+		.datepicker table tr td.disabled.day.focused,
+		.datepicker table tr td.disabled.day:hover {
+			background-color: transparent !important;
+			/* border-color: #ccc; */
+		}
+
+		td.day.active {
+			color: #fff !important;
+			background: #198754 !important;
+		}
+
+		td.day {
+			font-weight: bolder;
+			color: #000 !important;
+			border-radius: 0px;
+		}
+
+
+		td.new.day,
+		td.old.day {
+			font-weight: bolder;
+			color: #999 !important;
+			border-radius: 0px;
+		}
+
+		td.new.day:hover,
+		td.old.day:hover {
+			color: #fff !important;
+		}
+
+		.datepicker table tr td.today.day {
+			/* background: #198754 !important; */
+			border-color: #198754;
+			/* color: #fff !important; */
+		}
+
+		td.day.disabled,
+		td.new.disabled.day {
+			font-weight: normal;
+			border: none;
+			color: #999 !important;
+		}
+	</style>
+
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
+	<script
+		src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/js/bootstrap-datepicker.min.js"></script>
+
+	<script>
+
+		let getSlots = [];
+		let configSlotID = '';
+		let listDisplayFlag = true;
+
+		window.onmessage = (event) => {
+
+			if (event.data) {
+				let { type } = event.data;
+				if (type === 'appointment-filter') {
+					let { data } = event.data;
+					displayBookingSlot(data);
+				}
+
+				if (type === 'configuration') {
+					let { data } = event.data;
+					configuration(data);
+				}
+			}
+		};
+
+		const submitForm = (data) => {
+			window.parent.postMessage(data, "https://mahaperiyava.wixsite.com");
+		}
+
+		const getEndDate = (days) => {
+
+			let timestamp = new Date(days);
+			let date = timestamp.getDate();
+			let month = timestamp.getMonth() + 1;
+			let year = timestamp.getFullYear();
+
+			let dates = date <= 9 ? `0${date}` : date;
+			let months = month <= 9 ? `0${month}` : month;
+
+			return `${months}/${dates}/${year}`
+		}
+
+		const configuration = (responseData) => {
+			$("#numberofDays").val(responseData[0].numberofDays);
+			$("#slotDuration").val(responseData[0].slotDuration);
+			$("#slotEndTime").val(responseData[0].slotEndTime);
+			$("#slotLength").val(responseData[0].slotLength);
+			$("#slotStartTime").val(responseData[0].slotStartTime);
+
+			configSlotID = responseData[0]['_id'];
+		}
+
+		const configurationSubmit = () => {
+			const numberofDays = $("#numberofDays").val() || 0;
+			const slotDuration = $("#slotDuration").val() || 0;
+			const slotEndTime = $("#slotEndTime").val() || 0;
+			const slotLength = $("#slotLength").val() || 0;
+			const slotStartTime = $("#slotStartTime").val() || 0;
+
+			const data = {
+				title: "config",
+				_id: configSlotID,
+				numberofDays: +numberofDays,
+				slotDuration: +slotDuration,
+				slotEndTime: slotEndTime,
+				slotLength: +slotLength,
+				slotStartTime: slotStartTime
+			}
+
+			window.parent.postMessage(data, "https://mahaperiyava.wixsite.com");
+
+			displayMsg({
+				"title": "<i class='fa fa-check fa-1x pe-2' aria-hidden='true'></i> Success!",
+				"content": "Appointment Configuration was Successfully updated!",
+				"class": "bg-success text-white"
+			});
+		}
+
+		const listAppointment = () => {
+			let content = $("#listAppointmentDisplay").find('tbody');
+			let getSlotsList = getSlots;
+			let tmpArr = [];
+
+			if (getSlotsList && getSlotsList.length > 0) {
+				getSlotsList = getSlotsList.sort((a, b) => {
+					if (a.time > b.time) { return 1; }
+					if (a.time < b.time) { return -1; }
+					return 0;
+				})
+
+				for (const key in getSlotsList) {
+
+					tmpArr.push(`
+						<tr>
+							<td> ${getSlotsList[key].fullname} </td>
+							<td> ${getSlotsList[key].email} </td>
+							<td> ${getSlotsList[key].phone} </td>
+							<td> ${getSlotsList[key].time} </td> 
+							<td> ${getSlotsList[key].calltype} </td>
+							<td> ${getSlotsList[key].address} </td>
+						</tr>
+					`);
+				}
+			}
+
+			if (tmpArr.length > 0) {
+				content.empty().append(tmpArr.join(""))
+			} else {
+				content.empty().append("<tr><td colspan='7'>No Appointment Found</td></tr>")
+			}
+		}
+
+		const gridAppointment = () => {
+			let content = $("#gridAppointmentDisplay");
+			let getSlotsGrid = getSlots;
+			let tmpArr = [];
+
+			if (getSlotsGrid && getSlotsGrid.length > 0) {
+				getSlotsGrid = getSlotsGrid.sort((a, b) => {
+					if (a.time > b.time) { return 1; }
+					if (a.time < b.time) { return -1; }
+					return 0;
+				})
+
+				for (const key in getSlotsGrid) {
+
+					tmpArr.push(`
+						<div class="col-sm-12 col-md-6 my-2">
+							<div class="card rounded-0">
+								<div class="card-header">
+									<h5 class="card-title fw-bolder"> ${getSlotsGrid[key].fullname} </h5>
+									<div class="card-subtitle fw-bolder">
+										<span class="badge ${getSlotsGrid[key].calltype === "Audio" ? "bg-info" : "bg-warning"}" style="border-radius: 0px;font-size: 0.95rem;">${getSlotsGrid[key].calltype}</span>
+										<span class="badge bg-secondary" style="border-radius: 0px;font-size: 0.95rem;">${getSlotsGrid[key].time}</span> 
+									</div>
+								</div>
+								<div class="card-body">
+									<h6 class="card-subtitle mb-2 text-muted fw-bolder">${getSlotsGrid[key].email}</h6>
+									<h6 class="card-subtitle mb-2 text-muted fw-bolder">${getSlotsGrid[key].phone}</h6>
+									<p class="card-text">
+										${getSlotsGrid[key].address}
+									</p>
+								</div>
+							</div>
+						</div>
+					`);
+				}
+			}
+			if (tmpArr.length > 0) {
+				content.empty().append(tmpArr.join(""))
+			} else {
+				content.empty().append("<p class='text-center'>No Appointment Found</p>")
+			}
+		}
+
+		const displayBookingSlot = (responseData) => {
+			getSlots = responseData;
+
+			if (listDisplayFlag) {
+				$("#gridAppointmentDisplay").addClass('d-none');
+				$("#listAppointmentDisplay").removeClass('d-none');
+				listAppointment();
+			} else {
+				$("#listAppointmentDisplay").addClass('d-none');
+				$("#gridAppointmentDisplay").removeClass('d-none');
+				gridAppointment();
+			}
+		}
+
+		const displayMsg = (display) => {
+			$(".modal-header").removeClass('bg-success text-white bg-danger').addClass(display.class);
+			$(".modal-title").html(display.title);
+			$(".modal-body").html(display.content);
+
+			$(".modal").modal('show');
+		}
+
+		const loadingSpinner = (id) => {
+			let content = `<div class="d-flex align-items-center">
+                                <strong>Loading...</strong>
+                                <div class="spinner-border ms-auto" role="status" aria-hidden="true"></div>
+                            </div>`;
+
+			id.empty().append(content);
+
+		}
+
+		const hoursFormat = () => {
+			let tmpArr = [];
+			let listArr = ["00:30", "01:00", "01:30", "02:00", "02:30", "03:00", "03:30", "04:00", "04:30", "05:00", "05:30", "06:00", "06:30", "07:00", "07:30", "08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "12:30", "13:00",
+				"13:30", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00", "17:30", "18:00", "18:30", "19:00", "19:30", "20:00", "20:30", "21:00", "21:30", "22:00", "22:30", "23:00", "23:30"];
+
+			for (let i = 0; i < listArr.length; i++) {
+				let innerText = i < 23 ? 'AM' : 'PM';
+				tmpArr.push(`<option value="${listArr[i]}" class="fw-bolder">${listArr[i]} ${innerText}</option>`);
+			}
+
+			$("#slotStartTime").empty().append(tmpArr.join(""))
+			$("#slotEndTime").empty().append(tmpArr.join(""))
+
+		}
+
+		$(document).ready(function () {
+
+			$('#slotpicker').datepicker({
+				// startDate: startDate,
+				// endDate: endDate,
+				todayHighlight: true,
+				// daysOfWeekDisabled: "0,6"
+			})
+				.on('changeDate', function (e) {
+					$(".table-condensed .today").removeClass('today');
+					selectDate = e.format();
+					const selectDateTimeStamp = new Date(selectDate).getTime();
+					let currentDate = new Date().getTime();
+
+					if (selectDate) {
+
+						if (listDisplayFlag) {
+							loadingSpinner($("#listAppointmentDisplay").find('tbody'));
+						} else {
+							loadingSpinner($("#gridAppointmentDisplay"));
+						}
+
+						const data = {
+							title: "appointment-filter",
+							date: getEndDate(selectDate),
+						}
+
+						submitForm(data);
+					}
+				});
+
+			$(".table-condensed").addClass('table');
+			$(".table-condensed .today").addClass('active');
+			$(".table-condensed .today").removeClass('today');
+			$(".datepicker").removeClass('datepicker-inline');
+
+			let initDate = new Date().getTime();
+
+			const initData = {
+				title: "appointment-filter",
+				date: getEndDate(initDate),
+			}
+
+			submitForm(initData);
+			hoursFormat();
+
+			$(document).on('submit', '#configSubmit', (e) => {
+				e.preventDefault();
+				configurationSubmit();
+			});
+
+			$(document).on("click", "#listAppointment", (e) => {
+				listDisplayFlag = true;
+				$("#gridAppointmentDisplay").addClass('d-none');
+				$("#listAppointmentDisplay").removeClass('d-none');
+				listAppointment();
+			})
+
+			$(document).on("click", "#gridAppointment", (e) => {
+				listDisplayFlag = false;
+				$("#listAppointmentDisplay").addClass('d-none');
+				$("#gridAppointmentDisplay").removeClass('d-none');
+				gridAppointment();
+			})
+
+		});
+
+	</script>
+
+	<title>Periyavaarul</title>
+</head>
+
+<body class="bg-light">
+
+	<nav class="navbar navbar-light bg-white py-0 mb-3">
+		<ul class="nav nav-pills" id="pills-tab" role="tablist">
+			<li class="nav-item" role="presentation">
+				<button class="nav-link active rounded-0" id="pills-home-tab" data-bs-toggle="pill"
+					data-bs-target="#pills-home" type="button" role="tab" aria-controls="pills-home"
+					aria-selected="true"> List of Appointment </button>
+			</li>
+			<li class="nav-item" role="presentation">
+				<button class="nav-link rounded-0" id="pills-profile-tab" data-bs-toggle="pill"
+					data-bs-target="#pills-profile" type="button" role="tab" aria-controls="pills-profile"
+					aria-selected="false"> Appointment Configuration </button>
+			</li>
+		</ul>
+	</nav>
+
+	<div class="tab-content" id="pills-tabContent">
+		<div class="tab-pane fade  show active" id="pills-home" role="tabpanel" aria-labelledby="pills-home-tab">
+
+			<div class="container-fluid">
+				<div class="row justify-content-center">
+					<div class="col-sm-12 col-md-10 bg-white border">
+						<h4 class="my-4">Filter By Appointment Date</h4>
+					</div>
+					<div class="col-sm-12 col-md-4 bg-white border">
+						<div class="m-3 slotdisplay" id="slotpickerDisplay">
+							<div id="slotpicker"></div>
+						</div>
+					</div>
+
+					<div class="col-sm-12 col-md-6 bg-white border">
+						<div class="row">
+							<div class="col-12 p-0">
+								<div class="card rounded-0 border-0">
+
+									<div class="card-header rounded-0" style="font-size: 1.2rem;">
+										<span class="px-2" style="cursor: pointer;" id="listAppointment"> <i
+												class="fa fa-list" aria-hidden="true"></i> List </span>
+										<span class="px-2" style="cursor: pointer;" id="gridAppointment"> <i
+												class="fa fa-th" aria-hidden="true"></i> Grid </span>
+									</div>
+
+									<div class="card-body table-responsive px-0" id="listAppointmentDisplay">
+										<table class="table table-bordered table-striped table-hover">
+											<thead>
+												<tr>
+													<th>Name</th>
+													<th>Email</th>
+													<th>Phone</th>
+													<th>Time</th>
+													<th>Type</th>
+													<th>Address</th>
+												</tr>
+											</thead>
+											<tbody>
+												<tr>
+													<td colspan="7">No Appointment Found</td>
+												</tr>
+											</tbody>
+										</table>
+									</div>
+
+									<div class="card-body row d-none px-0" id="gridAppointmentDisplay">
+										<p class="text-center">No Appointment Found</p>
+									</div>
+
+								</div>
+							</div>
+						</div>
+
+					</div>
+
+				</div>
+			</div>
+
+		</div>
+
+		<div class="tab-pane fade" id="pills-profile" role="tabpanel" aria-labelledby="pills-profile-tab">
+			<div class="container-fluid">
+				<div class="row justify-content-center">
+					<div class="col-sm-12 col-md-5 bg-white rounder-0 p-3">
+						<form id="configSubmit">
+							<div class="mb-3">
+								<label for="numberofDays" class="form-label fw-bolder">Number of Days</label>
+								<input type="number" class="form-control" id="numberofDays"
+									aria-describedby="numberofDays">
+								<small id="numberofDaysNote" class="form-text">
+									Set the Number of Appointment Date need to be open.
+								</small>
+							</div>
+
+							<div class="mb-3">
+								<label for="slotLength" class="form-label fw-bolder">Slot Length</label>
+								<input type="number" class="form-control" id="slotLength" aria-describedby="slotLength">
+								<small id="slotLengthNote" class="form-text">
+									Set the Number of Appointment slot need to be open in a day.
+								</small>
+							</div>
+
+							<div class="mb-3">
+								<label for="slotDuration" class="form-label fw-bolder">Slot Duration</label>
+								<input type="number" class="form-control" id="slotDuration"
+									aria-describedby="slotDuration">
+								<small id="slotDurationNote" class="form-text">
+									Set the Duration of each slot in minutes.
+								</small>
+							</div>
+
+							<div class="mb-3">
+								<label for="slotStartTime" class="form-label fw-bolder">Slot Start Time</label>
+								<select type="number" class="form-control" id="slotStartTime"
+									aria-describedby="slotStartTime">
+								</select>
+								<small id="slotStartTimeNote" class="form-text">
+									Set Start Time of the slot in 24 hours format in a day.
+								</small>
+							</div>
+
+							<div class="mb-3">
+								<label for="slotEndTime" class="form-label fw-bolder">Slot End Time</label>
+								<select type="number" class="form-control" id="slotEndTime"
+									aria-describedby="slotEndTime">
+								</select>
+								<small id="slotEndTimeNote" class="form-text">
+									Set End Time of the slot in 24 hours format in a day.
+								</small>
+							</div>
+
+							<button type="submit" class="btn btn-primary rounded-0"
+								style="width: 12rem;">Submit</button>
+						</form>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div class="modal" tabindex="-1">
+		<div class="modal-dialog modal-dialog-centered">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title">Modal title</h5>
+					<button type="button" class="btn-close text-white" data-bs-dismiss="modal"
+						aria-label="Close"></button>
+				</div>
+				<div class="modal-body">
+					<p>Modal body text goes here.</p>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+</body>
+
+</html>

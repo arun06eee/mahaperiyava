@@ -1,0 +1,633 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+	<!-- Required meta tags -->
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" />
+
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.css" />
+
+	<link rel="stylesheet"
+		href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/css/bootstrap-datepicker.min.css" />
+
+	<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Raleway">
+
+	<style rel="stylesheet">
+		html,
+		body {
+			font-family: 'Raleway', sans-serif;
+		}
+
+		/* .datepicker table tr td.day,
+		.datepicker table tr td.day {
+			background-color: #198754 !important;
+			border-color: #198754;
+		} */
+
+		.datepicker table tr td.day.disabled,
+		.datepicker table tr td.day.disabled {
+			background-color: transparent !important;
+			border-color: transparent;
+		}
+
+		.datepicker table tr td.disabled,
+		.datepicker table tr td.disabled:hover {
+			cursor: no-drop;
+			background-color: none;
+			border-color: none;
+		}
+
+
+		.datepicker table tr td.day.focused,
+		.datepicker table tr td.day:hover {
+			background-color: #198754 !important;
+			border-color: #198754;
+		}
+
+		.datepicker table tr td.disabled.day.focused,
+		.datepicker table tr td.disabled.day:hover {
+			background-color: transparent !important;
+			/* border-color: #ccc; */
+		}
+
+		td.day.active {
+			color: #fff !important;
+			background: #198754 !important;
+		}
+
+		td.day,
+		td.new.day {
+			font-weight: bolder;
+			color: #000 !important;
+			border: 1px solid #999;
+			border-radius: 0px;
+		}
+
+		td.day.disabled,
+		td.new.disabled.day {
+			font-weight: normal;
+			border: none;
+			color: #999 !important;
+		}
+
+		td.disabled-day {
+			color: #fff !important;
+			background-color: #999;
+			border-color: #999;
+		}
+	</style>
+
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
+	<script
+		src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.9.0/js/bootstrap-datepicker.min.js"></script>
+
+	<script>
+		let selectDate;
+		let selectTimer;
+		let NumberofDate = 3;
+		let slotLength = 10;
+		let slotDuration = 30 * 60000;
+		let startTime = 10 * 60 * 60000 + 30 * 60000;
+		let endTime = 22 * 60 * 60000;
+		let startDate = "tomorrow";
+		let endDate;
+		let breakpointStart = "13:00";
+		let breakpointEnd = "17:00";
+
+		let configFlag = false;
+		let slotFlag = false;
+
+		let getSlots = [];
+		let slotResponseData = [];
+		let disabledDateArr = [];
+		// let disabledDateList = [];
+		let disabledDateList = [1630521000000, 1630693800000, 1630780200000, 1631039400000];
+
+		window.onmessage = (event) => {
+
+			if (event.data) {
+				let { type } = event.data;
+				let { data } = event.data;
+				if (type === 'appointment') {
+					resetForm();
+					slotFlag = true;
+					slotResponseData = data;
+				}
+
+				if (type === 'configuration') {
+					configFlag = true;
+					configurationSlot(data);
+				}
+
+				if (configFlag && slotFlag) {
+					getBookingSlot(slotResponseData);
+				}
+			}
+		};
+
+		const submitForm = (data) => {
+			window.parent.postMessage(data, "https://mahaperiyava.wixsite.com");
+
+			displayMsg({
+				"title": "<i class='fa fa-check fa-1x pe-2' aria-hidden='true'></i> Success!",
+				"content": "Your Appointment was Successfully created!",
+				"class": "bg-success text-white"
+			});
+		}
+
+		const validatePhoneNumber = (input_str) => {
+			var re = /^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$/im;
+
+			return re.test(input_str);
+		}
+
+		const configurationSlot = (responseData) => {
+			NumberofDate = responseData[0].numberofDays;
+			slotLength = responseData[0].slotLength;
+			slotDuration = (responseData[0].slotDuration) * 60000;
+
+			let slotStartTime = (responseData[0].slotStartTime).split(":");
+			let slotEndTime = (responseData[0].slotEndTime).split(":");
+
+			startTime = (+slotStartTime[0]) * 60 * 60000 + (+slotStartTime[1]) * 60000;
+			endTime = (+slotEndTime[0]) * 60 * 60000 + (+slotEndTime[1]) * 60000;
+		}
+
+		const showSlotTime = (selectTime, selectDate) => {
+
+			let currentDate = selectTime + startTime;
+			let stopTime = selectTime + endTime;
+
+			let breakPointStartTime = new Date(`${selectDate} ${breakpointStart}`).getTime();
+			let breakPointEndTime = new Date(`${selectDate} ${breakpointEnd}`).getTime();
+
+			let tmpArr = [];
+			let stopTimeFlag = false;
+
+			while (tmpArr.length < slotLength && !stopTimeFlag) {
+
+				let hour = new Date(currentDate).getHours();
+				let min = new Date(currentDate).getMinutes();
+				let AMPM = hour >= 12 ? 'PM' : 'AM';
+
+				min = min <= 9 ? "0" + min : min;
+				hour = hour <= 12 ? hour : (hour - 12);
+				hour = hour <= 9 ? "0" + hour : hour;
+
+				if (currentDate <= stopTime && (currentDate < breakPointStartTime || currentDate > breakPointEndTime)) {
+					let setTimeValue = `${hour}:${min} ${AMPM}`;
+
+					let checkSlot = getSlots.find(slot => slot.time === setTimeValue && slot.date === selectDate);
+
+					let disabledClass = !checkSlot ? 'btn-outline-success slotTimepickup' : 'btn-dark disabled';
+
+					tmpArr.push(`<input type="button" class="btn m-2 ${disabledClass}" value="${setTimeValue}" style="width:6rem; ${checkSlot ? 'cursor: no-drop;pointer-events: auto;' : ''}"  />`)
+				}
+
+				if (currentDate > stopTime) {
+					stopTimeFlag = true;
+				}
+
+				currentDate = currentDate + slotDuration;
+			}
+
+			$("#slotTime .slotTimeDisplay").empty().append(tmpArr.join(''))
+			$("#slotTime").removeClass('d-none');
+		}
+
+		const getEndDate = (days) => {
+			let currentDate = new Date().getTime() + days;
+
+			let timestamp = new Date(currentDate);
+			let date = timestamp.getDate();
+			let month = timestamp.getMonth() + 1;
+			let year = timestamp.getFullYear();
+
+			return new Date(`${month}/${date}/${year}`)
+		}
+
+		const getBookingSlot = (responseData) => {
+
+			getSlots = [];
+			let groupDate = [];
+			let checkingZeroLength = 0;
+			let checktgreaterLength = 0;
+
+			for (const key in responseData) {
+				const slot = {
+					_id: responseData[key]._id,
+					fullname: responseData[key].fullname,
+					email: responseData[key].email,
+					phone: responseData[key].phone,
+					address: responseData[key].address,
+					date: responseData[key].date,
+					time: responseData[key].time
+				};
+
+				getSlots.push(slot);
+
+				if (!groupDate[responseData[key].date]) {
+					groupDate[responseData[key].date] = []
+				}
+
+				groupDate[responseData[key].date].push(slot);
+			}
+
+			if (groupDate) {
+				for (const key in groupDate) {
+
+					if (groupDate[key].length >= slotLength) {
+						checktgreaterLength = checktgreaterLength + 1;
+					} else {
+						checkingZeroLength = checkingZeroLength + 1
+					}
+				}
+			}
+
+			let getLength = Object.keys(groupDate).length - 1;
+
+			if (checkingZeroLength <= 1 && checktgreaterLength > 0) {
+
+				if (checkingZeroLength == 0) {
+					getLength = checktgreaterLength + NumberofDate;
+				}
+
+				if (checkingZeroLength == 1) {
+					getLength = getLength + 1;
+				}
+			}
+
+			if (getLength <= 0) {
+				getLength = 1;
+			}
+
+			let endDate = getEndDate(24 * 1000 * 60 * 60 * (NumberofDate + getLength));
+			let startDate = getEndDate((24 * 1000 * 60 * 60 * 1));
+
+			if (disabledDateArr.length > 0) {
+				let sDate = new Date(startDate).getTime();
+				let eDate = new Date(endDate).getTime();
+				let dCount = 0;
+
+				for (let i = 0; i < disabledDateArr.length; i++) {
+					if (disabledDateArr[i] >= sDate && disabledDateArr[i] <= eDate) {
+						dCount++;
+					}
+				}
+
+				if (dCount > 0) {
+					NumberofDate = NumberofDate + dCount;
+					endDate = getEndDate(24 * 1000 * 60 * 60 * (NumberofDate + 1));
+				}
+
+			}
+
+			displayDateFilter(startDate, endDate);
+
+		}
+
+		const displayMsg = (display) => {
+			$(".modal-header").removeClass('bg-success text-white bg-danger').addClass(display.class);
+			$(".modal-title").html(display.title);
+			$(".modal-body").html(display.content);
+
+			$(".modal").modal('show');
+		}
+
+		const resetForm = () => {
+
+			$("#firstName").val("");
+			$("#emailAddress").val("");
+			$("#phoneNumber").val("");
+			$("#address").val("");
+			selectTimer = null;
+			selectDate = null;
+			$("#slotpicker").datepicker("clearDates");
+			$("#slotTime").addClass('d-none');
+		}
+
+		const displayDateFilter = (startDate, endDate) => {
+			$("#slotpicker").datepicker('destroy');
+
+			$('#slotpicker').datepicker({
+				startDate: startDate,
+				endDate: endDate,
+				// todayHighlight: true,
+				// daysOfWeekDisabled: "0,6"
+			})
+				.on('changeDate', function (e) {
+					selectDate = e.format();
+					const selectDateTimeStamp = new Date(selectDate).getTime();
+					let currentDate = new Date().getTime();
+
+					if (selectDate) {
+						showSlotTime(selectDateTimeStamp, selectDate);
+					}
+
+					for (let i = 0; i < disabledDateArr.length; i++) {
+						$(`[data-date='${disabledDateArr[i]}']`).addClass('disabled-day');
+					}
+
+					setDisableDate();
+				});
+
+			$(".table-condensed").addClass('table');
+			$(".datepicker").removeClass('datepicker-inline');
+
+			let startTime = new Date(startDate).getTime();
+			let endTime = new Date(endDate).getTime();
+			let diffDate = ((endTime - startTime) / 86400000);
+
+			if (diffDate > NumberofDate) {
+				let dateCount = diffDate - NumberofDate;
+
+				startTime = startTime + 19800000;
+
+				for (let i = 0; i < dateCount; i++) {
+					disabledDateArr.push(startTime);
+					$(`[data-date='${startTime}']`).addClass('disabled-day');
+
+					startTime = startTime + 86400000;
+				}
+			}
+
+			setDisableDate(startDate, endDate);
+		}
+
+		const setDisableDate = () => {
+
+			let startDate = getEndDate((24 * 1000 * 60 * 60 * 1));
+
+			let dDateArr = [];
+			if (disabledDateList.length > 0) {
+
+				let sDate = new Date(startDate).getTime();
+				let dCount = 0;
+				while (dCount < (NumberofDate - 1)) {
+
+					$(`[data-date='${sDate + 19800000}']`).removeClass('disabled');
+
+					dCount++;
+
+					if ($.inArray(sDate, disabledDateList) != -1) {
+						dCount = dCount - 1;
+						$(`[data-date='${sDate + 19800000}']`).addClass('disabled');
+					}
+
+					sDate = sDate + (24 * 1000 * 60 * 60 * 1);
+
+				}
+			}
+		}
+
+		$(document).ready(function () {
+
+			endDate = getEndDate(24 * 1000 * 60 * 60 * (NumberofDate + 1));
+			startDate = getEndDate((24 * 1000 * 60 * 60 * 1));
+
+			if (disabledDateList.length > 0) {
+				let sDate = new Date(startDate).getTime();
+				let eDate = new Date(endDate).getTime();
+				let dCount = 0;
+
+				for (let i = 0; i < disabledDateList.length; i++) {
+					if (disabledDateList[i] >= sDate && disabledDateList[i] <= eDate) {
+						dCount++;
+					}
+				}
+
+				if (dCount > 0) {
+					NumberofDate = NumberofDate + dCount;
+				}
+			}
+
+			console.log(startDate, endDate);
+
+			displayDateFilter(startDate, endDate);
+
+			$(document).on('click', '.slotTimepickup', (e) => {
+				$(".slotTimepickup").removeClass('btn-success').addClass('btn-outline-success');
+				$(e.target).removeClass('btn-outline-success').addClass('btn-success');
+				$(".timer-btn").removeClass('btn-secondary').addClass('btn-dark')
+
+				$(".progress-bar").width("100%");
+
+				selectTimer = $(e.target).val();
+			})
+
+			$(document).on('submit', '#slotSubmit', (e) => {
+				e.preventDefault();
+
+				let firstName = $.trim($("#firstName").val());
+				let emailAddress = $.trim($("#emailAddress").val());
+				let phoneNumber = $.trim($("#phoneNumber").val());
+				let address = $.trim($("#address").val());
+				let bool = true;
+				let err = {};
+				err["title"] = "<i class='fa fa-times-circle fa-1x pe-2' aria-hidden='true'></i> Error";
+				err["class"] = "bg-danger text-white";
+
+				if (!selectDate) {
+					err['content'] = "<h4>Please choose your appointment slot Date</h4>";
+					displayMsg(err)
+					bool = false;
+					return;
+				};
+
+				if (!selectTimer) {
+					err['content'] = "<h4>Please choose your appointment slot Time</h4>";
+					displayMsg(err)
+					bool = false;
+					return;
+				};
+
+				if (!firstName || firstName === "") {
+					err['content'] = "<h4>Please enter your Full Name</h4>";
+					displayMsg(err)
+					bool = false;
+					return;
+				};
+
+				if (!emailAddress || emailAddress === "" || !emailAddress.includes("@")) {
+					err['content'] = "<h4>Please enter your Email Address</h4>";
+					displayMsg(err)
+					bool = false;
+					return;
+				};
+
+				// || !validatePhoneNumber(phoneNumber)
+
+				if (!phoneNumber || phoneNumber === "") {
+					err['content'] = "<h4>Please enter your Phone number</h4>";
+					displayMsg(err)
+					bool = false;
+					return;
+				};
+
+				if (!address || address === "") {
+					err['content'] = "<h4>Please enter your Address Details</h4>";
+					displayMsg(err)
+					bool = false;
+					return;
+				};
+
+				const data = {
+					title: "appointment",
+					fullname: firstName,
+					email: emailAddress,
+					phone: phoneNumber,
+					address: address,
+					date: selectDate,
+					time: selectTimer,
+					calltype: $("input[name='calltype']:checked").val()
+				}
+
+				if (bool) {
+					submitForm(data);
+				}
+			})
+		});
+	</script>
+
+	<title>Periyavaarul</title>
+</head>
+
+<body class="bg-white">
+
+	<div class="container-fluid p-0">
+		<form id="slotSubmit" style="width: 100%;" class="row m-auto border">
+
+			<div class="col-sm-12 col-md-4 bg-white">
+
+				<div class="m-3 slotdisplay" id="slotpickerDisplay">
+					<h4 class="my-4">Choose Your appointment Slot <strong class="text-danger">*</strong></h4>
+					<div id="slotpicker"></div>
+				</div>
+
+				<div id="slotTime" class="slotdisplay d-none">
+					<h4 class="my-4">Choose Your appointment Slot Time <strong class="text-danger">*</strong></h4>
+					<div class="m-3 slotTimeDisplay">
+					</div>
+				</div>
+			</div>
+
+			<div class="col-sm-12 col-md-4 bg-white">
+
+				<div id="personalInformation" class="slotdisplay">
+					<h4 class="my-4 pt-3">Personal Information</h4>
+
+					<div class="m-3">
+						<label for="firstName" class="form-label"> Call Type <strong class="text-danger">*</strong>
+						</label>
+						<br />
+
+						<div class="form-check form-check-inline">
+							<input class="form-check-input" type="radio" name="calltype" id="calltype1" value="Audio"
+								style="cursor: pointer;" checked>
+							<label class="form-check-label" for="calltype1" style="cursor: pointer;">Audio</label>
+						</div>
+
+						<div class="form-check form-check-inline">
+							<input class="form-check-input" type="radio" name="calltype" id="calltype2" value="Video">
+							<label class="form-check-label" for="calltype2" style="cursor: pointer;">Video</label>
+						</div>
+
+					</div>
+
+					<div class="m-3">
+						<label for="firstName" class="form-label">Full Name <strong class="text-danger">*</strong>
+						</label>
+						<input type="text" class="form-control" id="firstName" aria-describedby="firstName">
+					</div>
+
+					<div class="m-3">
+						<label for="emailAddress" class="form-label">Email Address <strong
+								class="text-danger">*</strong></label>
+						<input type="email" class="form-control" id="emailAddress" aria-describedby="emailAddress">
+					</div>
+
+					<div class="m-3">
+						<label for="phoneNumber" class="form-label">Phone Number <strong
+								class="text-danger">*</strong></label>
+						<input type="tel" class="form-control" id="phoneNumber" aria-describedby="emailHelp">
+					</div>
+
+					<div class="m-3">
+						<label for="address" class="form-label">Address <strong class="text-danger">*</strong></label>
+						<textarea cols="5" rows="5" class="form-control" id="address"></textarea>
+					</div>
+
+					<div class="m-3 d-grid">
+						<button type="submit" class="btn btn-info text-white btn-lg">Submit</button>
+					</div>
+				</div>
+			</div>
+
+			<div class="col-sm-12 col-md-4 bg-white border-start">
+				<!-- <div class="d-flex flex-column mb-2">
+					<strong class="text-danger fw-bolder fs-4">Important Note</strong>
+					<small class="fw-bolder fs-5">Please note that calls with GR Mama will be audio calls only.</small>
+				</div> -->
+				<div class="d-flex">
+					<img src="https://lh4.googleusercontent.com/tjC79fQNjRuGA0Yd72OOESlx3pG6r6_DjaHTpN9BpFwcRrZkDLUk_aLG5Gh_BLYSuznkKGqkTX3dNLVKE7OG1RXjagx3OMDSlJ2kNN1n0G81FWokCTZaKs6TwEOF_zdt8Q=w740"
+						class="img-fluid" />
+				</div>
+			</div>
+
+		</form>
+
+		<div class="row m-auto bg-white text-dark border">
+
+			<div class="col-sm-12 col-md-12">
+				<div class="d-flex align-items-center justify-content-center">
+					<div class="d-flex flex-column">
+						<strong>MAHAPERIYAVA SHARANAM</strong>
+						<img src="https://lh6.googleusercontent.com/qHbNHIwZDnm0I6TWD5pi62IuN-bZp1MpSgDIscl9E6cD3T_n7VmLKoOG_ucc3cGeS7qjSTzqC8AfleAcQW9ttPCKJBLD_-3Pc5gNXnpoNZab4l2WWbpC-jalm4pLvhDMUQ=w144"
+							class="img-fluid" />
+					</div>
+					<div class="p-2">
+						<strong class="text-danger p-2">Additional Information</strong>
+						<div class="p-2">
+							To order books authored by G R Mama please click on <a href="https://bit.ly/booksbyGR"
+								class="text-danger"> Book Order </a>
+						</div>
+
+						<div class="p-2">
+							If you would like to perform Guru Pooja please click on <a
+								href="https://bit.ly/GuruPoojaRequest" class="text-danger"> Request for Guru Pooja </a>
+						</div>
+						<div class="p-2">Visit our website <a href="https://www.periyavaarul.com/" class="text-danger">
+								www.periyavaarul.com </a> and visit our YouTube channel </div>
+					</div>
+
+				</div>
+			</div>
+
+		</div>
+	</div>
+
+	<div class="modal" tabindex="-1">
+		<div class="modal-dialog modal-dialog-centered">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title">Modal title</h5>
+					<button type="button" class="btn-close text-white" data-bs-dismiss="modal"
+						aria-label="Close"></button>
+				</div>
+				<div class="modal-body">
+					<p>Modal body text goes here.</p>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+</body>
+
+</html>
