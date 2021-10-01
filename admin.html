@@ -89,6 +89,11 @@
 			border: none;
 			color: #999 !important;
 		}
+
+		.holidayDisabled {
+			color: #fff !important;
+			background: #dc3545 !important;
+		}
 	</style>
 
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
@@ -101,25 +106,90 @@
 		let getSlots = [];
 		let configSlotID = '';
 		let listDisplayFlag = true;
+		let holidaySelectedDate = "";
+		let holidayMonthYear = "";
 
 		window.onmessage = (event) => {
 
 			if (event.data) {
 				let { type } = event.data;
+				let { data } = event.data;
+
 				if (type === 'appointment-filter') {
-					let { data } = event.data;
 					displayBookingSlot(data);
 				}
 
 				if (type === 'configuration') {
-					let { data } = event.data;
 					configuration(data);
+				}
+
+				if (type === 'holidayItem') {
+					listHoliday(data);
 				}
 			}
 		};
 
 		const submitForm = (data) => {
 			window.parent.postMessage(data, "https://mahaperiyava.wixsite.com");
+		}
+
+		const displayBookingSlot = (responseData) => {
+			getSlots = responseData;
+
+			if (listDisplayFlag) {
+				$("#gridAppointmentDisplay").addClass('d-none');
+				$("#listAppointmentDisplay").removeClass('d-none');
+				listAppointment();
+			} else {
+				$("#listAppointmentDisplay").addClass('d-none');
+				$("#gridAppointmentDisplay").removeClass('d-none');
+				gridAppointment();
+			}
+		}
+
+		const configuration = (responseData) => {
+			$("#numberofDays").val(responseData[0].numberofDays);
+			$("#slotDuration").val(responseData[0].slotDuration);
+			$("#slotEndTime").val(responseData[0].slotEndTime);
+			$("#slotLength").val(responseData[0].slotLength);
+			$("#slotStartTime").val(responseData[0].slotStartTime);
+
+			configSlotID = responseData[0]['_id'];
+		}
+
+		const listHoliday = (responseData) => {
+
+			let content = $("#holidayItemsDisplay").find('tbody');
+			let tmpArr = [];
+
+			$(`#holidaypicker td.disabled.holidayDisabled`).each((i, val) => {
+				$(val).addClass("day").removeClass("holidayDisabled disabled");
+			})
+
+			if (responseData && responseData.length > 0) {
+
+				for (const key in responseData) {
+
+					tmpArr.push(`
+						<tr>
+							<td> ${new Date(responseData[key].day).toDateString()} </td>
+							<td> ${responseData[key].desc} </td>
+							<td class="deleteHoliday" style="cursor: pointer;text-align: center;" data-monthyear="${responseData[key].monthyear}" data-id="${responseData[key]._id}"> <i class="fa fa-trash p-2 bg-danger text-white">&nbsp;</i> </td>
+						</tr>
+					`);
+
+
+
+					// $(`#holidaypicker [data-date='${responseData[key].day + 19800000}']`).addClass("disabled holidayDisabled").removeClass("day");
+
+				}
+			}
+
+			if (tmpArr.length > 0) {
+				content.empty().append(tmpArr.join(""))
+			} else {
+				content.empty().append("<tr><td colspan='7'>No Appointment Found</td></tr>")
+			}
 		}
 
 		const getEndDate = (days) => {
@@ -133,16 +203,6 @@
 			let months = month <= 9 ? `0${month}` : month;
 
 			return `${months}/${dates}/${year}`
-		}
-
-		const configuration = (responseData) => {
-			$("#numberofDays").val(responseData[0].numberofDays);
-			$("#slotDuration").val(responseData[0].slotDuration);
-			$("#slotEndTime").val(responseData[0].slotEndTime);
-			$("#slotLength").val(responseData[0].slotLength);
-			$("#slotStartTime").val(responseData[0].slotStartTime);
-
-			configSlotID = responseData[0]['_id'];
 		}
 
 		const configurationSubmit = () => {
@@ -177,11 +237,19 @@
 			let tmpArr = [];
 
 			if (getSlotsList && getSlotsList.length > 0) {
+
 				getSlotsList = getSlotsList.sort((a, b) => {
 					if (a.time > b.time) { return 1; }
 					if (a.time < b.time) { return -1; }
 					return 0;
 				})
+
+				let filterAM = getSlotsList.filter(item => item.time.indexOf("AM") > -1);
+				let filterPM = getSlotsList.filter(item => item.time.indexOf("PM") > -1);
+				let filterAM12 = filterAM.filter(item => item.time.indexOf("12") > -1);
+				let filterPM12 = filterPM.filter(item => item.time.indexOf("12") > -1);
+
+				getSlotsList = [...new Set([...filterAM12, ...filterAM, ...filterPM12, ...filterPM])];
 
 				for (const key in getSlotsList) {
 
@@ -217,6 +285,13 @@
 					return 0;
 				})
 
+				let filterAM = getSlotsGrid.filter(item => item.time.indexOf("AM") > -1);
+				let filterPM = getSlotsGrid.filter(item => item.time.indexOf("PM") > -1);
+				let filterAM12 = filterAM.filter(item => item.time.indexOf("12") > -1);
+				let filterPM12 = filterPM.filter(item => item.time.indexOf("12") > -1);
+
+				getSlotsGrid = [...new Set([...filterAM12, ...filterAM, ...filterPM12, ...filterPM])];
+
 				for (const key in getSlotsGrid) {
 
 					tmpArr.push(`
@@ -248,20 +323,6 @@
 			}
 		}
 
-		const displayBookingSlot = (responseData) => {
-			getSlots = responseData;
-
-			if (listDisplayFlag) {
-				$("#gridAppointmentDisplay").addClass('d-none');
-				$("#listAppointmentDisplay").removeClass('d-none');
-				listAppointment();
-			} else {
-				$("#listAppointmentDisplay").addClass('d-none');
-				$("#gridAppointmentDisplay").removeClass('d-none');
-				gridAppointment();
-			}
-		}
-
 		const displayMsg = (display) => {
 			$(".modal-header").removeClass('bg-success text-white bg-danger').addClass(display.class);
 			$(".modal-title").html(display.title);
@@ -286,8 +347,7 @@
 				"13:30", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00", "17:30", "18:00", "18:30", "19:00", "19:30", "20:00", "20:30", "21:00", "21:30", "22:00", "22:30", "23:00", "23:30"];
 
 			for (let i = 0; i < listArr.length; i++) {
-				let innerText = i < 23 ? 'AM' : 'PM';
-				tmpArr.push(`<option value="${listArr[i]}" class="fw-bolder">${listArr[i]} ${innerText}</option>`);
+				tmpArr.push(`<option value="${listArr[i]}" class="fw-bolder">${listArr[i]}</option>`);
 			}
 
 			$("#slotStartTime").empty().append(tmpArr.join(""))
@@ -295,17 +355,13 @@
 
 		}
 
-		$(document).ready(function () {
-
+		const setSlotDateDisplay = () => {
 			$('#slotpicker').datepicker({
-				// startDate: startDate,
-				// endDate: endDate,
 				todayHighlight: true,
-				// daysOfWeekDisabled: "0,6"
 			})
 				.on('changeDate', function (e) {
-					$(".table-condensed .today").removeClass('today');
 					selectDate = e.format();
+					$(".table-condensed .today").removeClass('today');
 					const selectDateTimeStamp = new Date(selectDate).getTime();
 					let currentDate = new Date().getTime();
 
@@ -325,6 +381,29 @@
 						submitForm(data);
 					}
 				});
+
+		}
+
+		const setHolidayDatePicker = () => {
+
+			$("#holidaypicker").datepicker('destroy');
+			$("#holidaypicker").datepicker({
+				// todayHighlight: true,
+			}).on('changeDate', function (e) {
+				let selectDate = e.format();
+				holidaySelectedDate = new Date(selectDate).getTime();
+				holidayMonthYear = (new Date(selectDate).getMonth() + 1) + "/" + new Date(selectDate).getFullYear();
+
+			}).on('changeMonth', function (e) {
+				console.log("select month ====>", e.timeStamp);
+			});
+
+		}
+
+		$(document).ready(function () {
+
+			setSlotDateDisplay();
+			setHolidayDatePicker();
 
 			$(".table-condensed").addClass('table');
 			$(".table-condensed .today").addClass('active');
@@ -351,13 +430,48 @@
 				$("#gridAppointmentDisplay").addClass('d-none');
 				$("#listAppointmentDisplay").removeClass('d-none');
 				listAppointment();
-			})
+			});
 
 			$(document).on("click", "#gridAppointment", (e) => {
 				listDisplayFlag = false;
 				$("#listAppointmentDisplay").addClass('d-none');
 				$("#gridAppointmentDisplay").removeClass('d-none');
 				gridAppointment();
+			});
+
+			$(document).on("submit", "#holidaySubmit", (e) => {
+				e.preventDefault();
+
+				if (holidayMonthYear != "" && holidaySelectedDate != "") {
+
+					let data = {
+						monthyear: holidayMonthYear,
+						day: holidaySelectedDate,
+						desc: $("#holidaycomment").val(),
+						title: "holidaylist"
+					}
+
+					window.parent.postMessage(data, "https://mahaperiyava.wixsite.com");
+
+					holidayMonthYear = "";
+					holidaySelectedDate = "";
+					$("#holidaycomment").val("");
+				}
+			})
+
+			$(document).on('click', ".deleteHoliday", (e) => {
+				let id = $(e.currentTarget).data("id");
+				let monthyear = $(e.currentTarget).data("monthyear");
+				let data = {
+					title: "deleteHolidayList",
+					id: id,
+					monthyear: monthyear
+				}
+
+				if (id) {
+					window.parent.postMessage(data, "https://mahaperiyava.wixsite.com");
+				}
+
 			})
 
 		});
@@ -381,11 +495,16 @@
 					data-bs-target="#pills-profile" type="button" role="tab" aria-controls="pills-profile"
 					aria-selected="false"> Appointment Configuration </button>
 			</li>
+			<li class="nav-item" role="presentation">
+				<button class="nav-link rounded-0" id="pills-disabled-tab" data-bs-toggle="pill"
+					data-bs-target="#pills-disabled" type="button" role="tab" aria-controls="pills-disabled"
+					aria-selected="false"> Holiday List </button>
+			</li>
 		</ul>
 	</nav>
 
 	<div class="tab-content" id="pills-tabContent">
-		<div class="tab-pane fade  show active" id="pills-home" role="tabpanel" aria-labelledby="pills-home-tab">
+		<div class="tab-pane fade show active" id="pills-home" role="tabpanel" aria-labelledby="pills-home-tab">
 
 			<div class="container-fluid">
 				<div class="row justify-content-center">
@@ -503,6 +622,64 @@
 				</div>
 			</div>
 		</div>
+
+		<div class="tab-pane fade" id="pills-disabled" role="tabpanel" aria-labelledby="pills-disabled-tab">
+
+			<div class="container-fluid">
+				<div class="row justify-content-center">
+					<div class="col-sm-12 col-md-10 bg-white border">
+						<h4 class="my-4"> Holiday List</h4>
+					</div>
+					<div class="col-sm-12 col-md-4 bg-white border">
+						<div class="m-3">
+							<div id="holidaypicker"></div>
+						</div>
+
+						<div class="m-3">
+							<form id="holidaySubmit">
+								<div class="mb-3">
+									<label for="holidaycomment" class="form-label fw-bolder">Description</label>
+									<input type="text" class="form-control" id="holidaycomment"
+										aria-describedby="holidaycomment">
+								</div>
+								<button type="submit" class="btn btn-primary rounded-0"
+									style="width: 12rem;">Submit</button>
+							</form>
+						</div>
+					</div>
+
+					<div class="col-sm-12 col-md-6 bg-white border">
+						<div class="row">
+							<div class="col-12 p-0">
+
+								<div class="card rounded-0 border-0">
+
+									<div class="card-body table-responsive px-0" id="holidayItemsDisplay">
+										<table class="table table-bordered table-striped table-hover">
+											<thead>
+												<tr>
+													<th>Date</th>
+													<th>Description</th>
+													<th>&nbsp;</th>
+												</tr>
+											</thead>
+											<tbody>
+												<tr>
+													<td colspan="7">No Appointment Found</td>
+												</tr>
+											</tbody>
+										</table>
+									</div>
+								</div>
+
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+
 	</div>
 
 	<div class="modal" tabindex="-1">

@@ -88,7 +88,7 @@
 	<script>
 		let selectDate;
 		let selectTimer;
-		let NumberofDate = 3;
+		let NumberofDate = 5;
 		let slotLength = 10;
 		let slotDuration = 30 * 60000;
 		let startTime = 10 * 60 * 60000 + 30 * 60000;
@@ -100,12 +100,13 @@
 
 		let configFlag = false;
 		let slotFlag = false;
+		let disabledFlag = false;
 
 		let getSlots = [];
 		let slotResponseData = [];
 		let disabledDateArr = [];
-		// let disabledDateList = [];
-		let disabledDateList = [1630521000000, 1630693800000, 1630780200000, 1631039400000];
+		let disabledDateList = [];
+		// let disabledDateList = [1633631400000, 1633199400000, 1633113000000, 1633372200000];
 
 		window.onmessage = (event) => {
 
@@ -123,11 +124,28 @@
 					configurationSlot(data);
 				}
 
-				if (configFlag && slotFlag) {
+				if (type === 'holidayItem') {
+					setHolidayItem(data);
+					disabledFlag = true;
+				}
+
+				if (configFlag && slotFlag && disabledFlag) {
 					getBookingSlot(slotResponseData);
 				}
 			}
 		};
+
+		const setHolidayItem = (responseData) => {
+			let tmpArr = [];
+
+			if (responseData && responseData.length > 0) {
+				for (const key in responseData) {
+					tmpArr.push(responseData[key].day);
+				}
+			}
+
+			disabledDateList = tmpArr;
+		}
 
 		const submitForm = (data) => {
 			window.parent.postMessage(data, "https://mahaperiyava.wixsite.com");
@@ -214,8 +232,6 @@
 
 			getSlots = [];
 			let groupDate = [];
-			let checkingZeroLength = 0;
-			let checktgreaterLength = 0;
 
 			for (const key in responseData) {
 				const slot = {
@@ -239,55 +255,16 @@
 
 			if (groupDate) {
 				for (const key in groupDate) {
-
 					if (groupDate[key].length >= slotLength) {
-						checktgreaterLength = checktgreaterLength + 1;
-					} else {
-						checkingZeroLength = checkingZeroLength + 1
+						disabledDateList.push(new Date(key).getTime());
 					}
 				}
 			}
 
-			let getLength = Object.keys(groupDate).length - 1;
-
-			if (checkingZeroLength <= 1 && checktgreaterLength > 0) {
-
-				if (checkingZeroLength == 0) {
-					getLength = checktgreaterLength + NumberofDate;
-				}
-
-				if (checkingZeroLength == 1) {
-					getLength = getLength + 1;
-				}
-			}
-
-			if (getLength <= 0) {
-				getLength = 1;
-			}
-
-			let endDate = getEndDate(24 * 1000 * 60 * 60 * (NumberofDate + getLength));
 			let startDate = getEndDate((24 * 1000 * 60 * 60 * 1));
-
-			if (disabledDateArr.length > 0) {
-				let sDate = new Date(startDate).getTime();
-				let eDate = new Date(endDate).getTime();
-				let dCount = 0;
-
-				for (let i = 0; i < disabledDateArr.length; i++) {
-					if (disabledDateArr[i] >= sDate && disabledDateArr[i] <= eDate) {
-						dCount++;
-					}
-				}
-
-				if (dCount > 0) {
-					NumberofDate = NumberofDate + dCount;
-					endDate = getEndDate(24 * 1000 * 60 * 60 * (NumberofDate + 1));
-				}
-
-			}
+			let endDate = getEndDate(24 * 1000 * 60 * 60 * NumberofDate);
 
 			displayDateFilter(startDate, endDate);
-
 		}
 
 		const displayMsg = (display) => {
@@ -315,9 +292,7 @@
 
 			$('#slotpicker').datepicker({
 				startDate: startDate,
-				endDate: endDate,
-				// todayHighlight: true,
-				// daysOfWeekDisabled: "0,6"
+				endDate: endDate
 			})
 				.on('changeDate', function (e) {
 					selectDate = e.format();
@@ -334,6 +309,10 @@
 
 					setDisableDate();
 				});
+
+			$(".datepicker-switch").attr('colspan', 7);
+			$("#slotpicker .next").remove();
+			$("#slotpicker .prev").remove();
 
 			$(".table-condensed").addClass('table');
 			$(".datepicker").removeClass('datepicker-inline');
@@ -367,11 +346,10 @@
 
 				let sDate = new Date(startDate).getTime();
 				let dCount = 0;
-				while (dCount < (NumberofDate - 1)) {
+
+				while (dCount < NumberofDate) {
 
 					$(`[data-date='${sDate + 19800000}']`).removeClass('disabled');
-
-					dCount++;
 
 					if ($.inArray(sDate, disabledDateList) != -1) {
 						dCount = dCount - 1;
@@ -379,33 +357,15 @@
 					}
 
 					sDate = sDate + (24 * 1000 * 60 * 60 * 1);
-
+					dCount++;
 				}
 			}
 		}
 
 		$(document).ready(function () {
 
-			endDate = getEndDate(24 * 1000 * 60 * 60 * (NumberofDate + 1));
+			endDate = getEndDate(24 * 1000 * 60 * 60 * (NumberofDate));
 			startDate = getEndDate((24 * 1000 * 60 * 60 * 1));
-
-			if (disabledDateList.length > 0) {
-				let sDate = new Date(startDate).getTime();
-				let eDate = new Date(endDate).getTime();
-				let dCount = 0;
-
-				for (let i = 0; i < disabledDateList.length; i++) {
-					if (disabledDateList[i] >= sDate && disabledDateList[i] <= eDate) {
-						dCount++;
-					}
-				}
-
-				if (dCount > 0) {
-					NumberofDate = NumberofDate + dCount;
-				}
-			}
-
-			console.log(startDate, endDate);
 
 			displayDateFilter(startDate, endDate);
 
@@ -458,8 +418,6 @@
 					bool = false;
 					return;
 				};
-
-				// || !validatePhoneNumber(phoneNumber)
 
 				if (!phoneNumber || phoneNumber === "") {
 					err['content'] = "<h4>Please enter your Phone number</h4>";
