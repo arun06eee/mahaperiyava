@@ -106,8 +106,7 @@
 		let getSlots = [];
 		let configSlotID = '';
 		let listDisplayFlag = true;
-		let holidaySelectedDate = "";
-		let holidayMonthYear = "";
+		let holidayMultiSelected = [];
 
 		window.onmessage = (event) => {
 
@@ -168,6 +167,10 @@
 
 			if (responseData && responseData.length > 0) {
 
+				responseData = responseData.sort((a, b) => {
+					return a.day - b.day;
+				})
+
 				for (const key in responseData) {
 
 					tmpArr.push(`
@@ -177,8 +180,6 @@
 							<td class="deleteHoliday" style="cursor: pointer;text-align: center;" data-monthyear="${responseData[key].monthyear}" data-id="${responseData[key]._id}"> <i class="fa fa-trash p-2 bg-danger text-white">&nbsp;</i> </td>
 						</tr>
 					`);
-
-
 
 					// $(`#holidaypicker [data-date='${responseData[key].day + 19800000}']`).addClass("disabled holidayDisabled").removeClass("day");
 
@@ -388,16 +389,36 @@
 
 			$("#holidaypicker").datepicker('destroy');
 			$("#holidaypicker").datepicker({
-				// todayHighlight: true,
+				multidate: true
 			}).on('changeDate', function (e) {
-				let selectDate = e.format();
-				holidaySelectedDate = new Date(selectDate).getTime();
-				holidayMonthYear = (new Date(selectDate).getMonth() + 1) + "/" + new Date(selectDate).getFullYear();
+
+				holidayMultiSelected = [];
+				let dateArr = e.dates;
+
+				if (dateArr && dateArr.length > 0) {
+
+					for (let i = 0; i < dateArr.length; i++) {
+
+						let selectDate = dateArr[i];
+						let holidaySelectedDate = new Date(selectDate).getTime();
+						let holidayMonthYear = (new Date(selectDate).getMonth() + 1) + "/" + new Date(selectDate).getFullYear();
+
+						holidayMultiSelected.push({
+							"monthyear": holidayMonthYear,
+							"day": holidaySelectedDate,
+						});
+					}
+				}
 
 			}).on('changeMonth', function (e) {
-				console.log("select month ====>", e.timeStamp);
-			});
 
+				let data = {
+					"monthyear": (new Date(e.date).getMonth() + 1) + "/" + new Date(e.date).getFullYear(),
+					"title": "listHoliday"
+				}
+
+				window.parent.postMessage(data, "https://mahaperiyava.wixsite.com");
+			});
 		}
 
 		$(document).ready(function () {
@@ -442,20 +463,20 @@
 			$(document).on("submit", "#holidaySubmit", (e) => {
 				e.preventDefault();
 
-				if (holidayMonthYear != "" && holidaySelectedDate != "") {
+				if (holidayMultiSelected.length > 0) {
 
 					let data = {
-						monthyear: holidayMonthYear,
-						day: holidaySelectedDate,
+						holidayMultiSelected: holidayMultiSelected,
 						desc: $("#holidaycomment").val(),
 						title: "holidaylist"
 					}
 
 					window.parent.postMessage(data, "https://mahaperiyava.wixsite.com");
 
-					holidayMonthYear = "";
-					holidaySelectedDate = "";
+					holidayMultiSelected = [];
 					$("#holidaycomment").val("");
+					$('#holidaypicker').val('').datepicker('update');
+
 				}
 			})
 
